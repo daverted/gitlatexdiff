@@ -31,8 +31,8 @@
 \hypersetup{
     bookmarks=false,         % show bookmarks bar?
     unicode=false,          % non-Latin characters in Acrobat’s bookmarks
-    pdftoolbar=true,        % show Acrobat’s toolbar?
-    pdfmenubar=true,        % show Acrobat’s menu?
+    pdftoolbar=true,        % show Acrobat's toolbar?
+    pdfmenubar=true,        % show Acrobat's menu?
     pdffitwindow=true,      % page fit to window when opened
     pdftitle={TITLE},    % title
     pdfauthor={Dave Snyder},     % author
@@ -51,10 +51,31 @@
 \pagestyle{plain}
 \setcounter{page}{1}
 
+% include git info
+\usepackage{gitinfo}
+
 \begin{document}
 \onehalfspacing
 
-This is my awesome new document.
+This is my awesome even more newer document.
+
+\gitAbbrevHash
+
+\gitAuthorName
+
+\gitAuthorEmail
+
+\gitAuthorDate
+
+\gitAuthorIsoDate
+
+\gitCommitterName
+
+\gitCommitterEmail
+
+\gitReferences
+
+
 
 
 \end{document}
