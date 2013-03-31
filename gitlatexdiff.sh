@@ -10,7 +10,6 @@ set -e
 verbose=false
 true=0 # functions like to return numbers
 false=1 # bash likes these to be backward
-requiredPermissions="rwx"
 usage="Usage: $0 [-v|--verbose] file.tex"
 
 # Errors
@@ -18,6 +17,10 @@ ERROR_MISSING=400
 ERROR_PERMISSIONS=401
 ERROR_DEPENDENCY=402
 ERROR_NUMARGS=403
+
+# Success
+NO_DIFFERENCE=200
+DIFF_CREATED=100
 
 # Helper Functions
 
@@ -171,8 +174,6 @@ function _run() {
     require pdflatex /usr/texbin
     require latexdiff /usr/texbin
     
-    ## TODO: confirm the file passed in is in the cwd git repo
-    
     # Liftoff! ############################
     if $verbose; then printf "Litoff!\n"; fi
     
@@ -180,9 +181,16 @@ function _run() {
     ext="${filebase##*.}"
     filename="${filebase%.*}"    
     
-    ## TODO - exit if there is no difference or if the file isn't in git
     if $verbose; then printf "\tgit diff\n"; fi
     git diff HEAD -- $filebase > $filename.gitdiff.$ext
+    
+    # check if there's a difference
+    if [ ! -s $filename.gitdiff.$ext ]
+    then
+        rm $filename.gitdiff.$ext
+        printf "Nothing to do for $1\n"
+        exit $NO_DIFFERENCE
+    fi
 
     if $verbose; then printf "\tdiff patch\n"; fi
     patch $filebase -R -i $filename.gitdiff.$ext -o $filename.patch.$ext
@@ -190,12 +198,23 @@ function _run() {
     if $verbose; then printf "\tlatexdiff\n"; fi
     latexdiff $filename.patch.$ext $filebase > $filename.ldiff.$ext
     
-    if $verbose; then printf "\tcompile latex diff\n"; fi
+    if $verbose; then printf "\tcompile latex diff (first pass)\n"; fi
+    pdflatex $filename.ldiff.$ext
+    if $verbose; then printf "\tcompile latex diff (second pass)\n"; fi
     pdflatex $filename.ldiff.$ext
     
-    ## TODO: clean up
+    #clean up
+    rm $filename.gitdiff.$ext
+    rm $filename.patch.$ext
+    rm $filename.ldiff.aux
+    rm $filename.ldiff.log
+    rm $filename.ldiff.out
     
-    ## TODO: check if mac; open pdf
+    #if Mac; open pdf
+    if [ `uname` == 'Darwin' ]; then open $filename.ldiff.pdf; fi
+    
+    printf "Created $filename.ldiff.$ext and $filename.ldiff.pdf\n"
+    exit $DIFF_CREATED
 } 
 
 # Require more than zero arguments
