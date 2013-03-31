@@ -171,6 +171,8 @@ function _run() {
     require pdflatex /usr/texbin
     require latexdiff /usr/texbin
     
+    ## TODO: confirm the file passed in is in the cwd git repo
+    
     # Liftoff! ############################
     if $verbose; then printf "Litoff!\n"; fi
     
