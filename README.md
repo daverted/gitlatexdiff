@@ -7,9 +7,13 @@ A utility for differencing your working copy of a LaTeX file with the copy most 
 
 `$ ./gitlatexdiff [-v|--verbose] [-b|--bibtex] [-q|--quiet] [-x|--no-open] file.tex`
 
+
 `-v` and `--verbose`: Enable verbose mode.
+
 `-b` and `--bibtex`: Also run `bibtex`.
+
 `-q` and `--quiet`: Suppress LaTeX and Bibtex output to the terminal.
+
 `-x` and `--no-open`: [Mac Only] Do not automatically open PDF when finished.
 
 ## Contact
