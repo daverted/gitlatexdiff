@@ -1,22 +1,27 @@
 #!/bin/bash
 
-#######################################
-#  Dave Snyder                        #
-#  daverted@gmail.com                 #
-#######################################
+#############################################
+#  Dave Snyder                              #
+#  daverted@gmail.com                       #
+#  https://github.com/daverted/gitlatexdiff #
+#############################################
 set -e
 
 # Variables
 verbose=false
 true=0 # functions like to return numbers
 false=1 # bash likes these to be backward
-usage="Usage: $0 [-v|--verbose] file.tex"
+usage="Usage: $0 [-v|--verbose] [-b|--bibtex] [-q|--quiet] [-x|--no-open] file.tex"
+pdflatexCommand="pdflatex --file-line-error"
+bibtexCommand="bibtex"
+noOpen=false
 
 # Errors
 ERROR_MISSING=400
 ERROR_PERMISSIONS=401
 ERROR_DEPENDENCY=402
 ERROR_NUMARGS=403
+ERROR_BADARGS=404
 
 # Success
 NO_DIFFERENCE=200
@@ -30,7 +35,7 @@ function userHasPermissions() {
     # exit if the file doesn't exist
     if [ ! -e $1 ]
     then
-    printf "Whoops! $1 is missing.\n" >&2
+    printf "Error: The file '$1' is missing.\n" >&2
     exit $ERROR_MISSING
     fi
 
@@ -61,7 +66,7 @@ function groupHasPermissions() {
     # exit if the file doesn't exist
     if [ ! -e $1 ]
     then
-        printf "Whoops! $1 is missing.\n" >&2
+        printf "Error: The file '$1' is missing.\n" >&2
         exit $ERROR_MISSING
     fi
     
@@ -99,7 +104,7 @@ function worldHasPermissions() {
     # exit if the file doesn't exist
     if [ ! -e $1 ]
     then
-        printf "Whoops! $1 is missing.\n" >&2
+        printf "Error: The file '$1' is missing.\n" >&2
         exit $ERROR_MISSING
     fi
     
@@ -133,8 +138,8 @@ function hasPermissions() {
     elif worldHasPermissions $1 $2; then return $true;
     else
         # print error
-        printf "Whoops! $0 requires $2 permissions" >&2
-        printf " on $1 to run.\n" >&2
+        printf "Error: $0 requires $2 permissions" >&2
+        printf " on the file '$1' to run.\n" >&2
         exit $ERROR_PERMISSIONS
     fi
 }
@@ -144,7 +149,7 @@ function require() {
     then
         if $verbose; then printf "\t$1 is missing.\n"; fi
         # print error
-        printf "Whoops! $0 cannot find $1. Make sure it's installed and" >&2
+        printf "Error: $0 cannot find '$1'. Make sure it's installed and" >&2
         printf " in your path. Usually $1 is located in $2. Try adding" >&2
         printf " export PATH=\$PATH:$2 to your ~/.bashrc and restarting" >&2
         printf " your terminal session.\n"
@@ -173,6 +178,7 @@ function _run() {
     require patch /usr/bin
     require pdflatex /usr/texbin
     require latexdiff /usr/texbin
+    require bibtex /usr/texbin/bibtex
     
     # Liftoff! ############################
     if $verbose; then printf "Litoff!\n"; fi
@@ -181,6 +187,17 @@ function _run() {
     ext="${filebase##*.}"
     filename="${filebase%.*}"    
     
+    if [ $quiet ]
+    then 
+        if $verbose; then printf "\tquiet mode enabled\n"; fi
+        pdflatexCommand="$pdflatexCommand $filename.ldiff.$ext > /dev/null"
+        bibtexCommand="$bibtexCommand $filename.ldiff.aux > /dev/null"
+    else
+        if $verbose; then printf "\tquiet mode disabled\n"; fi
+        pdflatexCommand="$pdflatexCommand $filename.ldiff.$ext"
+        bibtexCommand="$bibtexCommand $filename.ldiff.aux"
+    fi
+    
     if $verbose; then printf "\tgit diff\n"; fi
     git diff HEAD -- $filebase > $filename.gitdiff.$ext
     
@@ -188,20 +205,30 @@ function _run() {
     if [ ! -s $filename.gitdiff.$ext ]
     then
         rm $filename.gitdiff.$ext
-        printf "Nothing to do for $1\n"
+        printf "Nothing to do for file: '$1'\n"
         exit $NO_DIFFERENCE
     fi
 
     if $verbose; then printf "\tdiff patch\n"; fi
-    patch $filebase -R -i $filename.gitdiff.$ext -o $filename.patch.$ext
+    patch $filebase -R -i $filename.gitdiff.$ext -o $filename.patch.$ext > /dev/null
     
     if $verbose; then printf "\tlatexdiff\n"; fi
     latexdiff $filename.patch.$ext $filebase > $filename.ldiff.$ext
-    
-    if $verbose; then printf "\tcompile latex diff (first pass)\n"; fi
-    pdflatex $filename.ldiff.$ext
-    if $verbose; then printf "\tcompile latex diff (second pass)\n"; fi
-    pdflatex $filename.ldiff.$ext
+
+    if $verbose; then printf "\tpdflatex diff file (first pass)\n"; fi
+    eval $pdflatexCommand
+
+    if [ $enableBibtex ]
+    then
+        if $verbose; then printf "\tbibtex diff file\n"; fi
+        eval $bibtexCommand
+        
+        if $verbose; then printf "\tpdflatex diff file (bibtex pass)\n"; fi
+        eval $pdflatexCommand
+    fi
+
+    if $verbose; then printf "\tpdflatex diff file (second pass)\n"; fi
+    eval $pdflatexCommand
     
     #clean up
     rm $filename.gitdiff.$ext
@@ -209,9 +236,21 @@ function _run() {
     rm $filename.ldiff.aux
     rm $filename.ldiff.log
     rm $filename.ldiff.out
+    if [ $enableBibtex ]
+    then
+        rm $filename.ldiff.bbl
+        rm $filename.ldiff.blg
+    fi
     
     #if Mac; open pdf
-    if [ `uname` == 'Darwin' ]; then open $filename.ldiff.pdf; fi
+    if [ `uname` != 'Darwin' -o $noOpen == true ]
+    then 
+        # do nothing
+        eval "echo \"do nothing\" > /dev/null"
+    else
+        if $verbose; then printf "\topening pdf\n"; fi
+        open $filename.ldiff.pdf
+    fi
     
     printf "Created $filename.ldiff.$ext and $filename.ldiff.pdf\n"
     exit $DIFF_CREATED
@@ -232,7 +271,15 @@ do
     case "$i" in
         -v|--verbose) verbose=true
             ;;
+        -b|--bibtex) enableBibtex=true
+            ;;
+        -q|--quiet) quiet=true
+            ;;
+        -x|--no-open) noOpen=true
+            ;;
+        -*) echo $usage; exit $ERROR_BADARGS;
+            ;;
         *) _run $i
-          ;;    
+            ;;    
     esac
 done
